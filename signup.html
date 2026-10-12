@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="theme-color" content="#0B0D10">
+        <link rel="preload" href="fonts/archivo-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+        <link rel="preload" href="fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+        <link rel="stylesheet" href="css/fonts.css">
+        <link rel="stylesheet" href="css/styles.css">
+        <title>Create an account — CircuitCare Repair</title>
+    </head>
+    <body>
+        <a class="skip" href="#main">Skip to content</a>
+        <header class="site" id="site-header" data-active="signup"></header>
+        <main id="main" class="auth">
+            <aside class="auth-aside">
+                <p class="eyebrow">New account</p>
+                <h1>Your repairs, all in one place.</h1>
+                <p class="muted">Sign up once and send repair requests in seconds, without repeating your details.</p>
+                <ul>
+                    <li>Your details are saved for next time</li>
+                    <li>Every repair gets a ticket number</li>
+                    <li>Track status from any device</li>
+                </ul>
+            </aside>
+            <div class="auth-main">
+                <div class="auth-form" id="step1">
+                    <p class="eyebrow">Account</p>
+                    <h2>Create your account</h2>
+                    <form id="f" novalidate>
+                        <div class="form-error" role="alert" hidden></div>
+                        <div class="field">
+                            <label for="name">Full name</label>
+                            <input
+                                id="name"
+                                name="name"
+                                autocomplete="name"
+                                placeholder="Maria Santos…"
+                                aria-describedby="name-err">
+                            <p class="err" id="name-err"></p>
+                        </div>
+                        <div class="field">
+                            <label for="phone">Phone number</label>
+                            <input
+                                id="phone"
+                                name="phone"
+                                type="tel"
+                                inputmode="tel"
+                                autocomplete="tel"
+                                placeholder="09XX XXX XXXX…"
+                                aria-describedby="phone-err">
+                            <p class="err" id="phone-err"></p>
+                        </div>
+                        <div class="field">
+                            <label for="email">Email</label>
+                            <input
+                                id="email"
+                                name="email"
+                                type="email"
+                                inputmode="email"
+                                autocomplete="email"
+                                spellcheck="false"
+                                placeholder="name@example.com…"
+                                aria-describedby="email-err">
+                            <p class="err" id="email-err"></p>
+                        </div>
+                        <div class="field">
+                            <label for="password">Password</label>
+                            <div class="pw">
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    autocomplete="new-password"
+                                    placeholder="At least 8 characters…"
+                                    aria-describedby="password-err password-hint">
+                                <button
+                                    class="pw-btn"
+                                    type="button"
+                                    data-pw="password"
+                                    aria-label="Show password"
+                                    aria-pressed="false"
+                                >
+                                    Show
+                                </button>
+                            </div>
+                            <p class="hint" id="password-hint">Use 8 or more characters.</p>
+                            <p class="err" id="password-err"></p>
+                        </div>
+                        <button class="btn btn-primary btn-block" type="submit">Create account</button>
+                    </form>
+                    <p class="alt">
+                        Already have an account?
+                        <a href="login.html">Log in</a>
+                    </p>
+                    <p class="hint alt">We’ll use your details to contact you about your repairs.</p>
+                </div>
+                <div class="auth-form" id="step2" hidden>
+                    <p class="eyebrow">Verify your email</p>
+                    <h2>Enter your code</h2>
+                    <p class="muted" id="sent-to" aria-live="polite"></p>
+                    <form id="v" novalidate>
+                        <div class="form-error" role="alert" hidden></div>
+                        <div class="field">
+                            <label for="code">6-digit code</label>
+                            <input
+                                id="code"
+                                name="code"
+                                inputmode="numeric"
+                                autocomplete="one-time-code"
+                                maxlength="6"
+                                pattern="[0-9]*"
+                                placeholder="123456…"
+                                aria-describedby="code-err">
+                            <p class="err" id="code-err"></p>
+                        </div>
+                        <button class="btn btn-primary btn-block" type="submit">Verify and create account</button>
+                    </form>
+                    <p class="alt">
+                        Didn’t get it?
+                        <button class="btn btn-ghost btn-sm" type="button" id="resend">Send a new code</button>
+                    </p>
+                    <p class="alt"><a href="signup.html">Use a different email</a></p>
+                    <p class="hint alt">The code expires in 10 minutes. Check your spam folder too.</p>
+                </div>
+            </div>
+        </main>
+        <script src="js/config.js"></script>
+        <script src="js/app.js"></script>
+        <script src="js/pages/signup.js"></script>
+    </body>
+</html>
