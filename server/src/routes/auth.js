@@ -1,9 +1,11 @@
 import { Router } from "express"
 import bcrypt from "bcryptjs"
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto"
+import mongoose from "mongoose"
 import { z } from "zod"
 import { User } from "../models/User.js"
 import { PendingSignup } from "../models/PendingSignup.js"
+import { PasswordReset } from "../models/PasswordReset.js"
 import { signToken, requireAuth } from "../middleware/auth.js"
 import { sendOtpMail } from "../mailer.js"
 import { HttpError, asyncHandler, parse } from "../util.js"
@@ -48,7 +50,12 @@ const registerSchema = z
         phone: z
             .string()
             .trim()
-            .regex(/^[0-9+()\-\s]{10,20}$/, "Enter a valid phone number."),
+            .transform((v) => v.replace(/[\s()-]/g, ""))
+            .refine(
+                (v) => /^(?:09[0-9]{9}|\+639[0-9]{9}|639[0-9]{9})$/.test(v),
+                "Enter a Philippine mobile number: 09XX XXX XXXX or +63 9XX XXX XXXX."
+            )
+            .transform((v) => (v.startsWith("09") ? `+63${v.slice(1)}` : v.startsWith("639") ? `+${v}` : v)),
         email,
         password
     })
@@ -58,6 +65,9 @@ const resendSchema = z.object({ email }).strict()
 const verifySchema = z
     .object({ email, code: z.string().trim().regex(/^[0-9]{6}$/, "Enter the 6-digit code.") })
     .strict()
+const resetSchema = z
+    .object({ email, code: z.string().trim().regex(/^[0-9]{6}$/, "Enter the 6-digit code."), password })
+    .strict()
 
 // Email code (OTP) rules.
 const OTP_TTL_MS = 10 * 60 * 1000 // a code works for 10 minutes
@@ -65,9 +75,12 @@ const OTP_COOLDOWN_MS = 60 * 1000 // at least 60 seconds between two emails to t
 const OTP_MAX_SENDS = 5 // codes emailed per sign-up
 const OTP_MAX_TRIES = 5 // wrong guesses per code, then the sign-up is cancelled
 const BAD_CODE = "That code is wrong or has expired."
+const RESET_MESSAGE = "If an account exists for that email, a verification code will arrive shortly."
 
 // Only a keyed hash of the code is stored, so a leaked database cannot be used to read or guess codes.
 const hashCode = (cfg, mail, code) => createHmac("sha256", cfg.jwtSecret).update(`${mail}|${code}`).digest("hex")
+const hashResetCode = (cfg, mail, code) =>
+    createHmac("sha256", cfg.jwtSecret).update(`password-reset|${mail}|${code}`).digest("hex")
 const sameHash = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
 const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12) // so unknown emails take as long as real ones
@@ -114,6 +127,63 @@ async function issueCode(req, mail, data) {
         await PendingSignup.deleteOne({ email: mail })
         throw new HttpError(502, "We couldn't send the code. Please try again in a moment.")
     }
+}
+
+// Send a reset code only to existing accounts, but return the same response either way.
+async function issueResetCode(req, mail) {
+    if (!(await User.exists({ email: mail }))) return
+    const cfg = req.app.locals.cfg,
+        now = new Date(),
+        cutoff = new Date(now.getTime() - OTP_COOLDOWN_MS)
+    const code = String(randomInt(0, 1000000)).padStart(6, "0")
+    const fields = {
+        otpHash: hashResetCode(cfg, mail, code),
+        attempts: 0,
+        lastSentAt: now,
+        expiresAt: new Date(now.getTime() + OTP_TTL_MS)
+    }
+    // One request can claim an active reset only if its cooldown and send cap still allow it.
+    // The database rechecks these conditions as part of the write, so parallel requests cannot
+    // each pass a stale read and email codes that immediately invalidate one another.
+    let claimed = await PasswordReset.findOneAndUpdate(
+        {
+            email: mail,
+            expiresAt: mongoose.trusted({ $gt: now }),
+            lastSentAt: mongoose.trusted({ $lte: cutoff }),
+            sends: mongoose.trusted({ $lt: OTP_MAX_SENDS })
+        },
+        { $set: fields, $inc: { sends: 1 } },
+        { new: true }
+    )
+    if (!claimed) {
+        // An expired request can be restarted, also atomically.
+        claimed = await PasswordReset.findOneAndUpdate(
+            { email: mail, expiresAt: mongoose.trusted({ $lte: now }) },
+            { $set: { ...fields, sends: 1 } },
+            { new: true }
+        )
+    }
+    if (!claimed) {
+        // Create the first request only once. A concurrent insert either observes this row or
+        // loses to the unique email index and does not send a second, competing code.
+        try {
+            const created = await PasswordReset.updateOne(
+                { email: mail },
+                { $setOnInsert: { email: mail, ...fields, sends: 1 } },
+                { upsert: true }
+            )
+            if (!created.upsertedCount) return // an existing live request is cooling down or capped
+        } catch (e) {
+            if (e && e.code === 11000) return
+            throw e
+        }
+    }
+    Promise.resolve()
+        .then(() => (req.app.locals.sendOtp || sendOtpMail)(cfg, mail, code, "password-reset"))
+        .catch(async (e) => {
+            console.error(e && e.message)
+            await PasswordReset.deleteOne({ email: mail, otpHash: hashResetCode(cfg, mail, code) })
+        })
 }
 
 // Step 1: check the details and email a code. No account exists yet.
@@ -185,6 +255,51 @@ authRouter.post(
         if (!user || !ok) throw new HttpError(401, "Email or password is incorrect.") // same message either way
         setCookie(req, res, user)
         res.json({ user: pub(user) })
+    })
+)
+
+authRouter.post(
+    "/forgot-password",
+    asyncHandler(async (req, res) => {
+        const d = parse(resendSchema, req.body)
+        await issueResetCode(req, d.email)
+        res.status(202).json({ ok: true, message: RESET_MESSAGE, resendAfter: OTP_COOLDOWN_MS / 1000 })
+    })
+)
+
+authRouter.post(
+    "/forgot-password/resend",
+    asyncHandler(async (req, res) => {
+        const d = parse(resendSchema, req.body)
+        await issueResetCode(req, d.email)
+        res.status(202).json({ ok: true, message: RESET_MESSAGE, resendAfter: OTP_COOLDOWN_MS / 1000 })
+    })
+)
+
+authRouter.post(
+    "/forgot-password/reset",
+    asyncHandler(async (req, res) => {
+        const d = parse(resetSchema, req.body)
+        const bad = new HttpError(400, BAD_CODE, { code: BAD_CODE })
+        const p = await PasswordReset.findOneAndUpdate({ email: d.email }, { $inc: { attempts: 1 } }, { new: true })
+        if (!p || p.expiresAt.getTime() <= Date.now() || p.attempts > OTP_MAX_TRIES) throw bad
+        if (!sameHash(p.otpHash, hashResetCode(req.app.locals.cfg, d.email, d.code))) {
+            if (p.attempts >= OTP_MAX_TRIES) {
+                await PasswordReset.deleteOne({ _id: p._id })
+                throw new HttpError(429, "Too many wrong codes. Please request a new code.")
+            }
+            throw bad
+        }
+        const passwordHash = await bcrypt.hash(d.password, 12)
+        // Consume the code atomically so it can only reset the password once.
+        const consumed = await PasswordReset.findOneAndDelete({ _id: p._id, otpHash: p.otpHash, attempts: p.attempts })
+        if (!consumed) throw bad
+        const changed = await User.updateOne(
+            { email: d.email },
+            { $set: { passwordHash }, $inc: { sessionVersion: 1 } }
+        )
+        if (!changed.matchedCount) throw bad
+        res.json({ ok: true })
     })
 )
 

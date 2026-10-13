@@ -85,6 +85,18 @@ export function createApp(cfg) {
                 `${req.ip}|${typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 120) : ""}`
         })
     )
+    // Password reset uses the same per-IP and per-email guess limits as sign-up verification.
+    app.post("/api/auth/forgot-password", limiter(L.auth))
+    app.post("/api/auth/forgot-password/resend", limiter(L.auth))
+    app.use("/api/auth/forgot-password/reset", limiter(L.otpVerifyIp ?? L.auth, { skipSuccessfulRequests: true }))
+    app.use(
+        "/api/auth/forgot-password/reset",
+        limiter(L.otpVerify ?? L.auth, {
+            skipSuccessfulRequests: true,
+            keyGenerator: (req) =>
+                `${req.ip}|${typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 120) : ""}`
+        })
+    )
     app.use("/api/auth", authRouter)
     app.use("/api/tickets", ticketRouter)
 

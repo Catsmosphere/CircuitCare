@@ -106,6 +106,15 @@
                 return USER
             })
         },
+        requestPasswordReset: function(email){
+            return call("POST", "/api/auth/forgot-password", { email: email })
+        },
+        resendPasswordReset: function(email){
+            return call("POST", "/api/auth/forgot-password/resend", { email: email })
+        },
+        resetPassword: function(email, code, password){
+            return call("POST", "/api/auth/forgot-password/reset", { email: email, code: code, password: password })
+        },
         logout: function(){
             call("POST", "/api/auth/logout")
                 .catch(function(){})
@@ -176,7 +185,10 @@
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? "" : "Enter a valid email, like name@example.com."
         },
         phone: function(v){
-            return v.replace(/\D/g, "").length >= 10 ? "" : "Enter a mobile number with at least 10 digits."
+            var normalized = v.replace(/[\s()-]/g, "")
+            return /^(?:09[0-9]{9}|\+639[0-9]{9}|639[0-9]{9})$/.test(normalized)
+                ? ""
+                : "Enter a Philippine mobile number: 09XX XXX XXXX or +63 9XX XXX XXXX."
         },
         pw: function(v){
             return v.length >= 8 ? "" : "Use at least 8 characters."

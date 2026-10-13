@@ -340,7 +340,7 @@ header.site{
     font-size: 0.92rem;
 }
 
-.alt a{
+.alt a:not(.btn){
     color: var(--accent);
     font-weight: 600;
     display: inline-block;
@@ -412,6 +412,61 @@ header.site{
 .auth-form h2{
     font-size: 2.2rem;
     margin: 10px 0 24px;
+}
+
+.auth-recovery .auth-main{
+    padding: clamp(28px, 5vw, 64px);
+}
+
+.recovery-panel{
+    padding: clamp(28px, 4vw, 44px);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+}
+
+.recovery-panel h2{
+    margin-bottom: 16px;
+}
+
+.recovery-panel > .muted{
+    max-width: 42ch;
+    margin-bottom: 24px;
+}
+
+.recovery-panel .form-error{
+    margin-top: 20px;
+}
+
+.recovery-complete .eyebrow{
+    margin-top: 20px;
+}
+
+.recovery-success-mark{
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 50%;
+}
+
+.recovery-success-mark svg{
+    width: 27px;
+    height: 27px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.recovery-actions{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 28px;
 }
 
 /* cards, badges, progress, rows */
@@ -1343,6 +1398,14 @@ legend{
 
     .auth-aside{
         display: none;
+    }
+
+    .auth-recovery .auth-main{
+        padding: 24px 20px 48px;
+    }
+
+    .recovery-panel{
+        padding: 28px 24px;
     }
 
     .svc,
