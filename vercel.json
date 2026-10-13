@@ -1,6 +1,9 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://circuitcare.onrender.com" }
+    { 
+      "source": "/api/:path*", 
+      "destination": "https://circuitcare.onrender.com/api/:path*" 
+    }
   ],
   "headers": [
     {
