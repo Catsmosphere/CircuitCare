@@ -1,9 +1,10 @@
-/* Page script for track.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep ticket tracking here so the Content-Security-Policy can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.guard("customer")
     if (u) {
         var out = document.getElementById("out"),
             inp = document.getElementById("ticket")
+        // Ask the server for a ticket owned by this customer before showing its repair history.
         var show = function(no){
             return CC.api.myTicket(no).then(function(t){
                 if (!t) {

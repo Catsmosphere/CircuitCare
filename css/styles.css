@@ -1,4 +1,4 @@
-/* CircuitCare — shared styles. Tokens first; dark-only brand theme. */
+/* Keep shared design tokens and the dark CircuitCare theme in this stylesheet. */
 :root{
     --bg: #0b0d10;
     --card: #15181c;

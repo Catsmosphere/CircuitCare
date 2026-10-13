@@ -1,4 +1,4 @@
-/* Page script for forgot-password.html. */
+/* Keep reset steps here so the page can request, verify, and finish a password reset. */
 CC.ready.then(function(){
     var email = "",
         timer = null,
@@ -7,10 +7,12 @@ CC.ready.then(function(){
         complete = document.getElementById("complete"),
         resend = document.getElementById("resend")
 
+    // Switch between the email, code, and confirmation panels without losing the entered email.
     function show(el, on){
         el.hidden = !on
     }
 
+    // Keep resend disabled until the server's cooldown has elapsed.
     function cooldown(seconds){
         var left = seconds
         clearInterval(timer)
@@ -28,6 +30,7 @@ CC.ready.then(function(){
         }, 1000)
     }
 
+    // Request a code first; the server uses the same response whether or not the email has an account.
     CC.form(
         document.getElementById("request-form"),
         { email: [CC.V.req("Enter your email."), CC.V.email] },
@@ -43,6 +46,7 @@ CC.ready.then(function(){
         }
     )
 
+    // Send the code and new password only after the customer reaches the verification step.
     CC.form(
         document.getElementById("reset-form"),
         {

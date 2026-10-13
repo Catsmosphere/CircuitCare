@@ -1,5 +1,4 @@
-// Run before every deploy, from the circuitcare folder:  node scripts/check-security.mjs
-// Fails (exit 1) if the frontend contains anything the strict Content-Security-Policy would block, or unsafe patterns.
+// Run this from the project folder before deploys to catch frontend code the Content-Security-Policy blocks.
 import { readdirSync, readFileSync, existsSync } from "node:fs"
 
 const problems = [],

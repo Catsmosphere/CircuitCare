@@ -1,10 +1,7 @@
-// Formats the whole project in your coding style:
-// 4-space indentation, every nesting level indented (html > head/body, section > h2, ...),
-// CSS written as "selector{" with one declaration per line and a blank line between rules,
-// JS with double quotes, no semicolons, and "function(){" (no spaces), like your jQuery and Promise code.
+// Format the project in the established style: four-space indentation, one CSS declaration per line,
+// double quotes, no JavaScript semicolons, and compact anonymous functions.
 //
-// Usage, from the project folder (the one that contains index.html):   node scripts/format.mjs
-// Tip: make a copy of the folder (or commit to git) first, so you can compare before and after.
+// Run this from the project folder (the one with index.html) using node scripts/format.mjs.
 import { execSync } from "node:child_process"
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
@@ -19,7 +16,7 @@ const targets = [
 ]
 execSync(`npx --yes prettier@3 --write ${targets.join(" ")}`, { stdio: "inherit" })
 
-// Prettier prints "<!doctype html>" and "<meta ... />". Match your style instead.
+// Undo Prettier's HTML casing and self-closing slash changes to keep the project's markup style.
 for (const f of readdirSync(".").filter((n) => n.endsWith(".html"))) {
     const s = readFileSync(f, "utf8")
         .replace(/<!doctype html>/i, "<!DOCTYPE html>")
@@ -27,7 +24,7 @@ for (const f of readdirSync(".").filter((n) => n.endsWith(".html"))) {
     writeFileSync(f, s)
 }
 
-// Prettier prints "a {". Match your style: "a{", and a blank line between rules.
+// Restore the compact selector style and blank space between CSS rules after Prettier runs.
 for (const f of readdirSync("css").filter((n) => n.endsWith(".css"))) {
     const lines = readFileSync(`css/${f}`, "utf8").replace(/ \{\n/g, "{\n").split("\n")
     const out = []
@@ -39,8 +36,9 @@ for (const f of readdirSync("css").filter((n) => n.endsWith(".css"))) {
     writeFileSync(`css/${f}`, out.join("\n"))
 }
 
-// Prettier prints "function(){". Match your style: "function(){" (anonymous functions only).
+// Remove Prettier's space before anonymous function parentheses to match the existing JavaScript style.
 function walk(dir) {
+    // Collect files recursively while skipping dependencies so the style fix reaches project code only.
     return readdirSync(dir).flatMap((n) => {
         if (n === "node_modules") return []
         const p = join(dir, n)

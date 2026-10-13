@@ -1,4 +1,4 @@
-/* Page script for owner.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep the owner's ticket dashboard behavior here so the CSP can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.guard("owner")
     if (u) {
@@ -27,6 +27,7 @@ CC.ready.then(function(){
                 return a.indexOf(t.status) > -1
             }).length
         }
+        // Keep filters in the URL so the current dashboard view survives a refresh or can be shared.
         function render() {
             var p = new URLSearchParams()
             if (state.status !== "All") p.set("status", state.status)
@@ -85,6 +86,7 @@ CC.ready.then(function(){
                       .join("")
                 : '<li class="empty"><h2>No tickets match</h2><p class="muted">Try a different status or search.</p></li>'
         }
+        // Use one listener for every status chip, including chips rendered above.
         el("filters").addEventListener("click", function(ev){
             var b = ev.target.closest("button")
             if (b) {

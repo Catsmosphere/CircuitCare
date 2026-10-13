@@ -1,6 +1,6 @@
-// Sends the sign-up code by email through Brevo's HTTPS API (free plan: 300 emails a day).
-// Why an API and not SMTP: many free hosts (Render included) block the SMTP ports, but HTTPS always works.
+// Send signup and reset codes through Brevo's HTTPS API because our hosts may block SMTP ports.
 export async function sendOtpMail(cfg, to, code, purpose = "signup") {
+    // Use one email template for both flows so the verification message stays consistent.
     const reset = purpose === "password-reset"
     const heading = reset ? "Reset your password" : "Verify your email"
     const eyebrow = reset ? "Account recovery" : "New account"
@@ -44,7 +44,7 @@ export async function sendOtpMail(cfg, to, code, purpose = "signup") {
 </html>`
     if (!cfg.mail) {
         if (cfg.prod) throw new Error("Mail is not configured (set BREVO_API_KEY and MAIL_FROM).")
-        console.log(`[dev] ${reset ? "Password reset" : "Sign-up"} code for ${to}: ${code}`) // local testing only
+        console.log(`[dev] ${reset ? "Password reset" : "Sign-up"} code for ${to}: ${code}`) // Print codes only during local testing.
         return
     }
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -61,5 +61,5 @@ export async function sendOtpMail(cfg, to, code, purpose = "signup") {
         }),
         signal: AbortSignal.timeout(8000)
     })
-    if (!res.ok) throw new Error(`Mail provider answered ${res.status}`) // status only: never log the key or the body
+    if (!res.ok) throw new Error(`Mail provider answered ${res.status}`) // Keep provider details out of logs so keys and email content stay private.
 }

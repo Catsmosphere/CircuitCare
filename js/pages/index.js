@@ -1,5 +1,6 @@
-/* Page script for index.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep landing-page behavior here so the Content-Security-Policy can block inline scripts. */
 CC.ready.then(function(){
+    // Show a clearly marked example ticket without requesting or exposing customer data.
     document.getElementById("sample").innerHTML = CC.tag(
         {
             no: "DEMO0",

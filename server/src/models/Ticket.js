@@ -1,7 +1,7 @@
 import mongoose from "mongoose"
 import { DEVICES, STATUSES, TICKET_NO } from "../constants.js"
 
-// Embedded status history: a StatusUpdate only exists as part of its ticket (composition in the class diagram).
+// Keep each status update inside its ticket because it has no meaning without that ticket.
 const updateSchema = new mongoose.Schema(
     {
         status: { type: String, enum: STATUSES, required: true },
@@ -15,7 +15,7 @@ const updateSchema = new mongoose.Schema(
 const schema = new mongoose.Schema(
     {
         ticketNo: { type: String, required: true, unique: true, match: TICKET_NO },
-        customer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true }, // referenced
+        customer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true }, // Reference the account so its contact details stay current.
         deviceType: { type: String, enum: DEVICES, required: true },
         deviceModel: { type: String, trim: true, maxlength: 80, default: "" },
         issue: { type: String, required: true, trim: true, minlength: 10, maxlength: 1000 },

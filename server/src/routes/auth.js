@@ -43,7 +43,7 @@ const password = z
     .min(8, "Use at least 8 characters.")
     .refine((v) => Buffer.byteLength(v) <= 72, "Password is too long.")
     .refine((v) => !COMMON.has(v.toLowerCase()), "That password is too common. Choose another.")
-// .strict() rejects unknown fields, so a client can never sneak in {"role":"owner"}.
+// Reject fields the page does not support, so a signup request cannot choose its own role.
 const registerSchema = z
     .object({
         name: z.string().trim().min(2, "Enter your full name.").max(80),
@@ -69,7 +69,7 @@ const resetSchema = z
     .object({ email, code: z.string().trim().regex(/^[0-9]{6}$/, "Enter the 6-digit code."), password })
     .strict()
 
-// Email code (OTP) rules.
+// Keep email-code timing and attempt limits together so signup and reset follow the same policy.
 const OTP_TTL_MS = 10 * 60 * 1000 // a code works for 10 minutes
 const OTP_COOLDOWN_MS = 60 * 1000 // at least 60 seconds between two emails to the same address
 const OTP_MAX_SENDS = 5 // codes emailed per sign-up
@@ -77,13 +77,13 @@ const OTP_MAX_TRIES = 5 // wrong guesses per code, then the sign-up is cancelled
 const BAD_CODE = "That code is wrong or has expired."
 const RESET_MESSAGE = "If an account exists for that email, a verification code will arrive shortly."
 
-// Only a keyed hash of the code is stored, so a leaked database cannot be used to read or guess codes.
+// Store keyed hashes so a database leak does not reveal codes that are waiting to be used.
 const hashCode = (cfg, mail, code) => createHmac("sha256", cfg.jwtSecret).update(`${mail}|${code}`).digest("hex")
 const hashResetCode = (cfg, mail, code) =>
     createHmac("sha256", cfg.jwtSecret).update(`password-reset|${mail}|${code}`).digest("hex")
 const sameHash = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
-const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12) // so unknown emails take as long as real ones
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12) // Spend similar time checking unknown emails to reduce account discovery by timing.
 const pub = (u) => ({ id: String(u._id), name: u.name, email: u.email, phone: u.phone, role: u.role })
 const setCookie = (req, res, user) => {
     const c = req.app.locals.cfg
@@ -92,7 +92,7 @@ const setCookie = (req, res, user) => {
 
 export const authRouter = Router()
 
-// Makes a new 6-digit code, stores its hash, and emails it. "data" is given only when a sign-up starts.
+// Start or resend signup verification, saving only a hash and enforcing the expiry, cooldown, and send limit.
 async function issueCode(req, mail, data) {
     const cfg = req.app.locals.cfg,
         now = Date.now()
@@ -105,7 +105,7 @@ async function issueCode(req, mail, data) {
         if (live.sends >= OTP_MAX_SENDS)
             throw new HttpError(429, "Too many codes requested. Please try again in a few minutes.")
     }
-    const code = String(randomInt(0, 1000000)).padStart(6, "0") // secure random generator, not Math.random
+    const code = String(randomInt(0, 1000000)).padStart(6, "0") // Use secure randomness so codes are hard to predict.
     await PendingSignup.findOneAndUpdate(
         { email: mail },
         {
@@ -123,13 +123,13 @@ async function issueCode(req, mail, data) {
     try {
         await (req.app.locals.sendOtp || sendOtpMail)(cfg, mail, code)
     } catch (e) {
-        console.error(e && e.message) // message only: never the code, the key or the email body
+        console.error(e && e.message) // Log only the error message, never the code, key, or email content.
         await PendingSignup.deleteOne({ email: mail })
         throw new HttpError(502, "We couldn't send the code. Please try again in a moment.")
     }
 }
 
-// Send a reset code only to existing accounts, but return the same response either way.
+// Email reset codes only to known accounts while returning the same response for known and unknown emails.
 async function issueResetCode(req, mail) {
     if (!(await User.exists({ email: mail }))) return
     const cfg = req.app.locals.cfg,
@@ -142,9 +142,7 @@ async function issueResetCode(req, mail) {
         lastSentAt: now,
         expiresAt: new Date(now.getTime() + OTP_TTL_MS)
     }
-    // One request can claim an active reset only if its cooldown and send cap still allow it.
-    // The database rechecks these conditions as part of the write, so parallel requests cannot
-    // each pass a stale read and email codes that immediately invalidate one another.
+    // Check the cooldown and send cap in the same database write so parallel requests cannot issue competing codes.
     let claimed = await PasswordReset.findOneAndUpdate(
         {
             email: mail,
@@ -156,7 +154,7 @@ async function issueResetCode(req, mail) {
         { new: true }
     )
     if (!claimed) {
-        // An expired request can be restarted, also atomically.
+        // Restart an expired request atomically instead of racing another resend.
         claimed = await PasswordReset.findOneAndUpdate(
             { email: mail, expiresAt: mongoose.trusted({ $lte: now }) },
             { $set: { ...fields, sends: 1 } },
@@ -164,15 +162,14 @@ async function issueResetCode(req, mail) {
         )
     }
     if (!claimed) {
-        // Create the first request only once. A concurrent insert either observes this row or
-        // loses to the unique email index and does not send a second, competing code.
+        // Create the first reset row only once; the unique email index prevents concurrent requests sending competing codes.
         try {
             const created = await PasswordReset.updateOne(
                 { email: mail },
                 { $setOnInsert: { email: mail, ...fields, sends: 1 } },
                 { upsert: true }
             )
-            if (!created.upsertedCount) return // an existing live request is cooling down or capped
+            if (!created.upsertedCount) return // Leave an active request alone while it is cooling down or capped.
         } catch (e) {
             if (e && e.code === 11000) return
             throw e
@@ -186,7 +183,7 @@ async function issueResetCode(req, mail) {
         })
 }
 
-// Step 1: check the details and email a code. No account exists yet.
+// Hold signup details as pending until the customer proves they can read the email code.
 authRouter.post(
     "/register",
     asyncHandler(async (req, res) => {
@@ -213,14 +210,14 @@ authRouter.post(
     })
 )
 
-// Step 2: check the code. Only now is the account created (role is always "customer") and the user logged in.
+// Create a customer account and sign them in only after their email code checks out.
 authRouter.post(
     "/register/verify",
     asyncHandler(async (req, res) => {
         const d = parse(verifySchema, req.body)
         const cfg = req.app.locals.cfg
-        const bad = new HttpError(400, BAD_CODE, { code: BAD_CODE }) // same answer for "no sign-up", "expired" and "wrong"
-        // Count the try first and atomically, so parallel guesses cannot sneak past the limit.
+        const bad = new HttpError(400, BAD_CODE, { code: BAD_CODE }) // Use one message for unknown, expired, and incorrect codes.
+        // Count the guess atomically before checking it so parallel requests cannot bypass the limit.
         const p = await PendingSignup.findOneAndUpdate({ email: d.email }, { $inc: { attempts: 1 } }, { new: true })
         if (!p || p.expiresAt.getTime() <= Date.now() || p.attempts > OTP_MAX_TRIES) throw bad
         if (!sameHash(p.otpHash, hashCode(cfg, d.email, d.code))) {
@@ -252,7 +249,7 @@ authRouter.post(
         const d = parse(loginSchema, req.body)
         const user = await User.findOne({ email: d.email }).select("+passwordHash")
         const ok = await bcrypt.compare(d.password, user ? user.passwordHash : DUMMY_HASH)
-        if (!user || !ok) throw new HttpError(401, "Email or password is incorrect.") // same message either way
+        if (!user || !ok) throw new HttpError(401, "Email or password is incorrect.") // Do not reveal whether the email exists.
         setCookie(req, res, user)
         res.json({ user: pub(user) })
     })
@@ -291,7 +288,7 @@ authRouter.post(
             throw bad
         }
         const passwordHash = await bcrypt.hash(d.password, 12)
-        // Consume the code atomically so it can only reset the password once.
+        // Remove the matching code atomically so two reset requests cannot both reuse it.
         const consumed = await PasswordReset.findOneAndDelete({ _id: p._id, otpHash: p.otpHash, attempts: p.attempts })
         if (!consumed) throw bad
         const changed = await User.updateOne(

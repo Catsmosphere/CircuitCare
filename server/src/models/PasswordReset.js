@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 
-// A password reset waiting for its email code. Codes are stored only as keyed hashes.
+// Store only a keyed hash of the reset code; MongoDB removes expired requests using the TTL index.
 const schema = new mongoose.Schema({
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 120 },
     otpHash: { type: String, required: true },

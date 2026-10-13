@@ -1,4 +1,4 @@
-/* Page script for dashboard.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep customer dashboard behavior here so the Content-Security-Policy can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.guard("customer")
     if (u) {
@@ -6,12 +6,15 @@ CC.ready.then(function(){
         document.getElementById("hi").textContent = "Hi, " + u.name.split(" ")[0] + "."
         if (location.search.indexOf("welcome=1") > -1)
             CC.toast("Account created. Welcome, " + u.name.split(" ")[0] + "!")
+        // Escape device details before placing them in generated page content.
         var title = function(t){
             return e(t.device + (t.model ? " (" + t.model + ")" : ""))
         }
+        // Use the shared ticket card for repairs that are still open.
         var card = function(t){
             return CC.tag(t, { link: true })
         }
+        // Keep completed repairs compact so customers can still find their history.
         var row = function(t){
             return (
                 '<li><span class="mono">' +
@@ -27,6 +30,7 @@ CC.ready.then(function(){
                 "</span></li>"
             )
         }
+        // Split the customer's tickets into active work and completed repairs.
         CC.api.myTickets().then(function(ts){
             var act = ts.filter(function(t){
                     return t.status !== "Closed"

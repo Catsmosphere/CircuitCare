@@ -7,9 +7,10 @@ export class HttpError extends Error {
         this.fields = fields
     }
 }
+// Forward rejected async route handlers to Express's error handler.
 export const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 
-// Validate untrusted input. Zod only lets through the exact types we declare, so objects like {"$gt": ""} are rejected.
+// Only pass validated fields to routes, which also blocks payloads that try to sneak in MongoDB operators.
 export function parse(schema, data) {
     const r = schema.safeParse(data)
     if (r.success) return r.data
@@ -20,8 +21,9 @@ export function parse(schema, data) {
     }
     throw new HttpError(400, "Please check the highlighted fields.", fields)
 }
+// Escape search text before using it in a regular expression, so users cannot change the query pattern.
 export const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const TICKET_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-// Random, unguessable ticket code (uses the secure random generator, not Math.random).
+// Use a cryptographic random source and skip look-alike characters to make ticket codes easier to read.
 export const newTicketNo = () =>
     Array.from({ length: 5 }, () => TICKET_ALPHABET[randomInt(TICKET_ALPHABET.length)]).join("")

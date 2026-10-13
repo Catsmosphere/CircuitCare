@@ -1,4 +1,4 @@
-// Security tests that need no database: they exercise the protections that run BEFORE any query.
+// Check request protections that run before the app would need a database connection.
 import test from "node:test"
 import assert from "node:assert/strict"
 import request from "supertest"
@@ -181,7 +181,7 @@ test("config: unsafe or invalid settings fail at startup", () => {
     assert.throws(() => loadConfig({ ...base, JWT_SECRET: "short" }), /JWT_SECRET/)
     assert.throws(() => loadConfig({ ...base, TRUST_PROXY: "abc" }), /TRUST_PROXY/)
     assert.throws(() => loadConfig({ ...base, COOKIE_SAMESITE: "none" }), /production/)
-    assert.throws(() => loadConfig({ ...base, NODE_ENV: "production" }), /BREVO_API_KEY/) // production must be able to email codes
+    assert.throws(() => loadConfig({ ...base, NODE_ENV: "production" }), /BREVO_API_KEY/) // Require an email provider for production codes.
     assert.throws(() => loadConfig({ ...base, BREVO_API_KEY: "k" }), /MAIL_FROM/)
     const prod = loadConfig({ ...base, NODE_ENV: "production", BREVO_API_KEY: "k", MAIL_FROM: "shop@example.com" })
     assert.equal(prod.cookieName, "__Host-cc_token")

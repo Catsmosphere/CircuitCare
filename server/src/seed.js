@@ -1,4 +1,4 @@
-// Creates (or resets) the shop owner's account. Run once:  npm run seed
+// Create or reset the shop owner's login from environment variables; run with npm run seed.
 import mongoose from "mongoose"
 import bcrypt from "bcryptjs"
 import { loadConfig } from "./config.js"
@@ -12,7 +12,7 @@ if (!email || password.length < 12) {
     process.exit(1)
 }
 await mongoose.connect(cfg.mongoUri)
-await User.init() // make sure the unique email index exists
+await User.init() // Wait for the unique email index before upserting the owner account.
 await User.findOneAndUpdate(
     { email },
     {

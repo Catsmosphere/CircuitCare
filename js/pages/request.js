@@ -1,10 +1,11 @@
-/* Page script for request.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep repair-request behavior here so the Content-Security-Policy can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.guard("customer")
     if (u) {
         document.getElementById("who").textContent = u.name + (u.phone ? " (" + u.phone + ")" : "")
         var f = document.getElementById("f"),
             dirty = false
+        // Warn customers before they leave a request they have started filling in.
         f.addEventListener("input", function(){
             dirty = true
         })

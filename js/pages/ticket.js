@@ -1,10 +1,11 @@
-/* Page script for ticket.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep owner ticket details and status editing here so the CSP can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.guard("owner")
     if (u) {
         var e = CC.esc,
             no = new URLSearchParams(location.search).get("ticket") || "",
             out = document.getElementById("out")
+        // Redraw the ticket and its history after each saved status update.
         function view(t) {
             document.title = "Ticket " + t.no + " — CircuitCare Repair"
             document.getElementById("crumb-no").textContent = t.no
@@ -52,6 +53,7 @@ CC.ready.then(function(){
                 "</section></div>"
             var f = document.getElementById("f"),
                 dirty = false
+            // Warn the owner before navigating away with unsaved status or note changes.
             f.addEventListener("input", function(){
                 dirty = true
             })

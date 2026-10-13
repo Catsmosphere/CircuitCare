@@ -1,5 +1,4 @@
-/* CircuitCare: shared front-end logic. Talks to the backend API in /server.
-   No passwords, tokens or personal data are kept in browser storage: the login lives in an httpOnly cookie. */
+/* Keep shared page helpers and API calls here. The login stays in an httpOnly cookie, not browser storage. */
 ;(function(){
     "use strict"
     var CFG = window.CC_CONFIG || {},
@@ -14,16 +13,19 @@
         Ready: "Ready for pickup. Bring your ticket number.",
         Closed: "Picked up. Thanks for trusting us with your device."
     }
+    // Turn labels into safe CSS-friendly values for status styles.
     var slug = function(s){
         return String(s)
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
     }
+    // Escape server-provided text before putting it inside generated HTML.
     var esc = function(s){
         return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
             return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
         })
     }
+    // Normalize ticket numbers so spaces, lowercase, and punctuation do not break a lookup.
     var normNo = function(no){
         return String(no)
             .toUpperCase()
@@ -39,6 +41,7 @@
     }
 
     /* ---- talking to the server ---- */
+    // Send every API request with the login cookie and turn server errors into form-friendly errors.
     function call(method, path, body) {
         var o = { method: method, credentials: "include", headers: { Accept: "application/json" } }
         if (method !== "GET") {
@@ -68,6 +71,7 @@
             }
         )
     }
+    // Keep page scripts independent of the API's field names and populated customer shape.
     var norm = function(t){
         var c = t.customer
         return Object.assign({}, t, {
@@ -77,10 +81,12 @@
             email: c ? c.email : ""
         })
     }
+    // Treat invalid or missing ticket numbers as an empty result; other failures still need reporting.
     var missing = function(e){
         if (e.status === 404 || e.status === 400) return null
         throw e
     }
+    // Collect the browser's API calls here so pages share one request and response format.
     var api = {
         login: function(email, password){
             return call("POST", "/api/auth/login", { email: email, password: password }).then(function(j){
@@ -88,7 +94,7 @@
                 return USER
             })
         },
-        /* Sign-up has two steps: signup() emails a 6-digit code, verifyEmail() checks it and logs the user in. */
+        /* Create an account only after the customer verifies the email code. */
         signup: function(f){
             return call("POST", "/api/auth/register", {
                 name: f.name,
@@ -164,7 +170,8 @@
             )
         }
     }
-    /* Who is logged in? The server is the only source of truth. Pages wait for this before drawing. */
+    /* Ask the server who is logged in instead of trusting browser storage. */
+    // Wait for the server to identify the current session before protected pages render.
     var ready = call("GET", "/api/auth/me").then(
         function(j){
             USER = j.user
@@ -175,6 +182,7 @@
     )
 
     /* ---- forms ---- */
+    // Reuse these small checks across forms; the server validates the same data again.
     var V = {
         req: function(m){
             return function(v){
@@ -194,6 +202,7 @@
             return v.length >= 8 ? "" : "Use at least 8 characters."
         }
     }
+    // Validate fields, show server-side field errors, and prevent duplicate form submissions.
     function form(el, rules, submit) {
         var btn = el.querySelector("[type=submit]"),
             box = el.querySelector(".form-error")
@@ -250,6 +259,7 @@
                 })
         })
     }
+    // Create a short-lived accessible message when a page needs to report an action.
     function toast(m) {
         var r = document.getElementById("toasts")
         if (!r) {
@@ -285,6 +295,7 @@
     var badge = function(s){
         return '<span class="badge" data-s="' + slug(s) + '">' + esc(s) + "</span>"
     }
+    // Map a ticket status onto the four repair stages shown to customers.
     function progress(status) {
         var n = IDX[status] || 1
         return (
@@ -307,6 +318,7 @@
             "</ol>"
         )
     }
+    // Show the newest ticket update first while leaving the stored history unchanged.
     function timeline(t) {
         return (
             '<ol class="timeline">' +
@@ -328,6 +340,7 @@
             "</ol>"
         )
     }
+    // Draw a decorative ticket barcode from its number; it is not used for scanning.
     function barcode(s) {
         var x = 0,
             r = "",
@@ -339,7 +352,8 @@
         }
         return '<svg class="bars" viewBox="0 0 ' + x + ' 28" aria-hidden="true" focusable="false">' + r + "</svg>"
     }
-    /* Service ticket: the signature component. o.pub hides private details, o.sample labels demo data, o.link adds a details button. */
+    /* Reuse this ticket card on the landing page, dashboard, and tracking page. */
+    // Build the reusable ticket card and hide repair details when it is shown publicly.
     function tag(t, o) {
         o = o || {}
         var l = t.updates[t.updates.length - 1]
@@ -380,6 +394,7 @@
     }
 
     /* ---- page chrome ---- */
+    // Build navigation from the server-verified user role and mark the active page.
     function header() {
         var el = document.getElementById("site-header")
         if (!el) return
@@ -423,6 +438,7 @@
         var lo = el.querySelector("[data-logout]")
         if (lo) lo.addEventListener("click", api.logout)
     }
+    // Redirect signed-out users to login and send the wrong role back to its own home page.
     function guard(role) {
         var u = me()
         if (!u) {
@@ -437,6 +453,7 @@
         }
         return u
     }
+    // Add optional motion and password visibility controls without requiring inline page scripts.
     function wireUi() {
         if (matchMedia("(pointer:fine) and (prefers-reduced-motion:no-preference)").matches) {
             ;[].forEach.call(document.querySelectorAll("[data-tilt]"), function(el){

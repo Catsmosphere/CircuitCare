@@ -1,11 +1,12 @@
-// A tiny in-memory stand-in for MongoDB, so the API's own logic (roles, ownership, validation, ticket flow)
-// can be tested without a database. It replaces the model methods the routes use. It is NOT a MongoDB replacement.
+// Replace only the Mongoose calls these API tests need, so they can run without MongoDB.
+// This fake does not reproduce MongoDB behavior beyond those test cases.
 import { User } from "../src/models/User.js"
 import { Ticket } from "../src/models/Ticket.js"
 import { PendingSignup } from "../src/models/PendingSignup.js"
 import { PasswordReset } from "../src/models/PasswordReset.js"
 
 class Query {
+    // Expose the few chainable query methods the routes use, then run the lookup when awaited.
     constructor(fn) {
         this.fn = fn
         this.pop = false
@@ -31,6 +32,7 @@ class Query {
 }
 
 export function installFakeDb() {
+    // Keep test records in arrays and replace model methods for this test run.
     const db = { users: [], tickets: [], pending: [], passwordResets: [] }
     let n = 0
     const oid = () => (++n).toString(16).padStart(24, "0")
@@ -101,7 +103,7 @@ export function installFakeDb() {
         for (const [k, v] of Object.entries(u.$inc || {})) user[k] = (user[k] || 0) + v
         return { matchedCount: 1 }
     }
-    // Sign-ups waiting for their email code. Supports only the $set / $inc / upsert forms the routes use.
+    // Mimic only the update operators the signup and reset routes use in these tests.
     PendingSignup.findOne = (f) => new Query(() => db.pending.find((p) => p.email === f.email) || null)
     PendingSignup.findOneAndUpdate = async (f, u, o = {}) => {
         let p = db.pending.find((x) => x.email === f.email)

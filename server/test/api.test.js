@@ -1,4 +1,4 @@
-// Tests the API's own logic (accounts, roles, ownership, ticket flow) against an in-memory fake database.
+// Exercise accounts, permissions, tickets, and reset flows without connecting these tests to MongoDB.
 import test from "node:test"
 import assert from "node:assert/strict"
 import request from "supertest"
@@ -42,7 +42,7 @@ const customer = request.agent(app),
     other = request.agent(app),
     owner = request.agent(app)
 
-// Stand-in for the email provider: remembers each code so the tests can read it.
+// Capture email codes here so tests can verify them without sending real emails.
 const sent = []
 app.locals.sendOtp = async (cfg, to, code, purpose) => {
     sent.push({ to, code, purpose })
@@ -58,10 +58,10 @@ let no1, no2
 test("register emails a code first; the account exists only after the code is verified", async () => {
     const start = await customer.post("/api/auth/register").send(maria)
     assert.equal(start.status, 202)
-    assert.equal(start.headers["set-cookie"], undefined) // not logged in yet
+    assert.equal(start.headers["set-cookie"], undefined) // Confirm the pending signup is not logged in yet.
     assert.equal(sent.at(-1).to, maria.email)
     assert.match(sent.at(-1).code, /^[0-9]{6}$/)
-    assert.equal(JSON.stringify(start.body).includes(sent.at(-1).code), false) // the code never travels in the API response
+    assert.equal(JSON.stringify(start.body).includes(sent.at(-1).code), false) // Confirm the code is delivered only by email.
     assert.equal(db.users.find((u) => u.email === maria.email), undefined)
     const r = await customer.post("/api/auth/register/verify").send({ email: maria.email, code: sent.at(-1).code })
     assert.equal(r.status, 201)
@@ -152,7 +152,7 @@ test("customer creates tickets with random codes; bad input is rejected per fiel
 test("customers only ever see their own tickets", async () => {
     await signUp(other, juan)
     assert.deepEqual((await other.get("/api/tickets/mine")).body.tickets, [])
-    assert.equal((await other.get(`/api/tickets/mine/${no1}`)).status, 404) // someone else's ticket looks like "not found"
+    assert.equal((await other.get(`/api/tickets/mine/${no1}`)).status, 404) // Make another customer's ticket look like it does not exist.
     const mine = await customer.get("/api/tickets/mine")
     assert.equal(mine.body.tickets.length, 2)
     assert.equal((await customer.get(`/api/tickets/mine/${no1}`)).status, 200)
@@ -178,9 +178,9 @@ test("owner lists, filters, searches and updates tickets; the customer sees the 
     assert.equal(all.body.tickets[0].customer.name, "Maria Santos")
     assert.equal((await owner.get("/api/tickets?status=Closed")).body.tickets.length, 0)
     assert.equal((await owner.get("/api/tickets?q=maria")).body.tickets.length, 2)
-    assert.equal((await owner.get(`/api/tickets?q=${no1.toLowerCase()}`)).body.tickets.length, 1) // search by ticket code, any letter case
+    assert.equal((await owner.get(`/api/tickets?q=${no1.toLowerCase()}`)).body.tickets.length, 1) // Allow ticket-code search in either letter case.
     assert.equal((await owner.get("/api/tickets?q=ZZZZZZ")).body.tickets.length, 0)
-    assert.equal((await owner.get("/api/tickets?q[$ne]=x")).status, 400) // query-operator injection is rejected
+    assert.equal((await owner.get("/api/tickets?q[$ne]=x")).status, 400) // Reject query-operator injection before it reaches MongoDB.
 
     const bad = await owner.patch(`/api/tickets/${no1}`).send({ status: "Teleported" })
     assert.equal(bad.status, 400)
@@ -208,7 +208,7 @@ test("tickets cannot be looked up without logging in", async () => {
 
 test("ticket codes are accepted in any letter case and rejected when malformed", async () => {
     assert.equal((await customer.get(`/api/tickets/mine/${no1.toLowerCase()}`)).status, 200)
-    assert.equal((await customer.get("/api/tickets/mine/00001")).status, 400) // 0 and 1 are never used in codes
+    assert.equal((await customer.get("/api/tickets/mine/00001")).status, 400) // Reject characters that ticket codes never use.
     assert.equal((await customer.get("/api/tickets/mine/ABCDEFG")).status, 400)
 })
 
@@ -221,7 +221,7 @@ test("if a random code is already taken, the server draws another", async () => 
     assert.equal(r.body.ticket.no, "ZZZZ9")
 })
 
-// ---- sign-up email code (OTP) ----
+// Check signup-code creation, retries, expiry, and one-time use here.
 const person = (n) => ({
     name: `Test Person ${n}`,
     phone: "09171234567",

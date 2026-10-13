@@ -8,15 +8,19 @@ import { authRouter } from "./routes/auth.js"
 import { ticketRouter } from "./routes/tickets.js"
 import { HttpError } from "./util.js"
 
-mongoose.set("sanitizeFilter", true) // extra NoSQL-injection defence: query operators in user data are neutralised
+// Make Mongoose treat user-provided query objects as values, not MongoDB operators.
+mongoose.set("sanitizeFilter", true)
 
 export function createApp(cfg) {
+    // Keep security checks, body parsing, rate limits, and routes in this order for every server instance.
     const app = express()
     app.disable("x-powered-by")
-    app.set("trust proxy", cfg.trustProxy ?? 1) // so rate limits see the real client IP, not the proxy's
+    // Trust only the configured proxy hops so request IP limits use the right address.
+    app.set("trust proxy", cfg.trustProxy ?? 1)
     app.locals.cfg = cfg
 
-    app.use(helmet()) // security headers
+    app.use(helmet()) // Set the standard security headers before handling any route.
+    // Use one rate-limit setup so every route returns the same retry response and headers.
     const limiter = (limit, opts = {}) =>
         rateLimit({
             windowMs: 15 * 60 * 1000,
@@ -28,8 +32,7 @@ export function createApp(cfg) {
         })
     app.use(limiter(cfg.limits.global))
 
-    // CORS is a browser rule, not a firewall: it only controls which sites may READ responses.
-    // So we also refuse any request that arrives with an Origin we don't know (blocks cross-site form/fetch abuse).
+    // Reject unknown origins on the server too; CORS alone only stops browsers from reading a response.
     app.use((req, res, next) => {
         const o = req.headers.origin
         if (o && !cfg.origins.includes(o)) return res.status(403).json({ error: "Origin not allowed." })
@@ -45,13 +48,13 @@ export function createApp(cfg) {
         })
     )
 
-    // Personal data must never be stored by browsers or shared caches.
+    // Stop browsers and shared caches from keeping API responses that contain personal data.
     app.use("/api", (req, res, next) => {
         res.set("Cache-Control", "no-store")
         next()
     })
     app.use(express.json({ limit: "10kb" }))
-    // JSON-only writes: a plain HTML form can't send this content type cross-site without a CORS preflight (a CSRF defence).
+    // Require JSON for writes so cross-site forms cannot submit these requests without a CORS preflight.
     app.use((req, res, next) => {
         if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method) && !req.is("application/json"))
             return next(new HttpError(415, "Send JSON with Content-Type: application/json."))
@@ -61,31 +64,31 @@ export function createApp(cfg) {
 
     app.get("/api/health", (req, res) => res.json({ ok: true }))
     const L = cfg.limits
-    // Brute-force protection. Only FAILED logins count, so real users aren't locked out by their own successful logins.
-    app.use("/api/auth/login", limiter(L.login ?? L.auth, { skipSuccessfulRequests: true })) // per IP, any account
+    // Count failed logins only, so successful sign-ins do not use up the visitor's retry allowance.
+    app.use("/api/auth/login", limiter(L.login ?? L.auth, { skipSuccessfulRequests: true })) // Limit attempts per IP across all accounts.
     app.use(
         "/api/auth/login",
         limiter(L.loginAccount ?? L.auth, {
-            // per IP and per account
+            // Also limit attempts per IP and account so one address cannot target one user repeatedly.
             skipSuccessfulRequests: true,
             keyGenerator: (req) =>
                 `${req.ip}|${typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 120) : ""}`
         })
     )
-    // Sign-up emails a code, so each step has its own limit (separate counters): starting, asking again, and guessing.
+    // Limit starting signup, resending a code, and guessing a code separately.
     app.post("/api/auth/register", limiter(L.auth))
     app.post("/api/auth/register/resend", limiter(L.auth))
-    app.use("/api/auth/register/verify", limiter(L.otpVerifyIp ?? L.auth, { skipSuccessfulRequests: true })) // per IP
+    app.use("/api/auth/register/verify", limiter(L.otpVerifyIp ?? L.auth, { skipSuccessfulRequests: true })) // Limit code guesses per IP.
     app.use(
         "/api/auth/register/verify",
         limiter(L.otpVerify ?? L.auth, {
-            // per IP and per email being verified
+            // Also limit guesses for each email address.
             skipSuccessfulRequests: true,
             keyGenerator: (req) =>
                 `${req.ip}|${typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 120) : ""}`
         })
     )
-    // Password reset uses the same per-IP and per-email guess limits as sign-up verification.
+    // Apply the same per-IP and per-email guess limits to password reset codes.
     app.post("/api/auth/forgot-password", limiter(L.auth))
     app.post("/api/auth/forgot-password/resend", limiter(L.auth))
     app.use("/api/auth/forgot-password/reset", limiter(L.otpVerifyIp ?? L.auth, { skipSuccessfulRequests: true }))
@@ -108,8 +111,8 @@ export function createApp(cfg) {
         if (err instanceof HttpError)
             return res.status(err.status).json({ error: err.message, ...(err.fields ? { fields: err.fields } : {}) })
         if (err && err.code === 11000) return res.status(409).json({ error: "That value is already in use." })
-        console.error(err && err.message) // log the message only, never request bodies or secrets
-        res.status(500).json({ error: "Something went wrong." }) // never leak stack traces
+        console.error(err && err.message) // Log the message only, not request bodies or secrets.
+        res.status(500).json({ error: "Something went wrong." }) // Keep internal stack traces out of API responses.
     })
     return app
 }

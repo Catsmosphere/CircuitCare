@@ -24,6 +24,7 @@ const updateSchema = z
     .strict()
 const listQuery = z.object({ status: z.enum(STATUSES).optional(), q: z.string().trim().max(60).optional() }).strict()
 
+// Shape database tickets into the smaller response used by both customer and owner pages.
 const out = (t, customer) => ({
     no: t.ticketNo,
     device: t.deviceType,
@@ -38,14 +39,14 @@ const out = (t, customer) => ({
 
 export const ticketRouter = Router()
 
-// ---- customer ----
+// Customer routes only return tickets owned by the signed-in customer.
 ticketRouter.post(
     "/",
     requireAuth,
     requireRole("customer"),
     asyncHandler(async (req, res) => {
         const d = parse(createSchema, req.body)
-        const makeNo = req.app.locals.newTicketNo || newTicketNo // (tests can swap the generator)
+        const makeNo = req.app.locals.newTicketNo || newTicketNo // Let tests provide predictable numbers without changing production generation.
         let t
         for (let attempt = 0; attempt < 5 && !t; attempt++) {
             try {
@@ -58,7 +59,7 @@ ticketRouter.post(
                     updates: [{ status: "Received", note: "Ticket created from the online request.", by: req.user._id }]
                 })
             } catch (e) {
-                if (e && e.code === 11000 && e.keyPattern && e.keyPattern.ticketNo) continue // that code is taken, draw another
+                if (e && e.code === 11000 && e.keyPattern && e.keyPattern.ticketNo) continue // Try another number only when this ticket code is already taken.
                 throw e
             }
         }
@@ -82,13 +83,13 @@ ticketRouter.get(
     requireAuth,
     requireRole("customer"),
     asyncHandler(async (req, res) => {
-        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no), customer: req.user._id }) // ownership check
-        if (!t) throw new HttpError(404, "No ticket found with that number on your account.") // same answer for "not yours"
+        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no), customer: req.user._id }) // Include the account in the query so customers cannot fetch someone else's ticket.
+        if (!t) throw new HttpError(404, "No ticket found with that number on your account.") // Use the same response for missing and other people's tickets.
         res.json({ ticket: out(t) })
     })
 )
 
-// ---- owner ----
+// Owner routes can search and update any ticket after the role check passes.
 ticketRouter.get(
     "/",
     requireAuth,

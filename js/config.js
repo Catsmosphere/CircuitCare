@@ -1,6 +1,6 @@
-/* Where the API lives.
-   - Local testing: the API runs on port 3000 of the same host name as this page (cookies need the same host name).
-   - Deployed: leave empty. vercel.json / netlify.toml proxy /api to the backend, so the browser only talks to one site. */
+/* Keep the API address in one place so local testing and deployed pages can use different routes.
+   Locally, use port 3000 on this page's host so the login cookie works across requests.
+   In production, leave the address empty and let vercel.json or netlify.toml proxy /api. */
 window.CC_CONFIG = {
     apiBase: /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
         ? location.protocol + "//" + location.hostname + ":3000"

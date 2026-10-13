@@ -1,4 +1,4 @@
-/* Page script for signup.html (kept in a file so the Content-Security-Policy can forbid inline scripts). */
+/* Keep signup behavior here so the Content-Security-Policy can block inline scripts. */
 CC.ready.then(function(){
     var u = CC.me()
     if (u) location.replace(CC.home(u))
@@ -9,12 +9,13 @@ CC.ready.then(function(){
         email = "",
         timer = null
 
+    // Switch between signup details and email verification while keeping one page open.
     function show(el, on){
         el.hidden = !on
         el.style.display = on ? "" : "none"
     }
 
-    /* The "send a new code" button waits out the server's cooldown, so people don't hammer it. */
+    /* Match the server's resend cooldown so the button cannot spam verification emails. */
     function cooldown(seconds){
         var left = seconds
         clearInterval(timer)
@@ -32,7 +33,7 @@ CC.ready.then(function(){
         }, 1000)
     }
 
-    /* Step 1: details. The server checks them and emails a code. No account exists yet. */
+    /* Collect signup details first; the server does not create the account until the code is verified. */
     CC.form(
         document.getElementById("f"),
         {
@@ -53,7 +54,7 @@ CC.ready.then(function(){
         }
     )
 
-    /* Step 2: the code. Only a correct code creates the account and logs the user in. */
+    /* Finish signup and start the session only after the email code is correct. */
     CC.form(
         document.getElementById("v"),
         {
