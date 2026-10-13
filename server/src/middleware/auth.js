@@ -3,7 +3,7 @@ import { User } from "../models/User.js"
 import { HttpError } from "../util.js"
 
 export const signToken = (cfg, user) =>
-    jwt.sign({ sub: String(user._id) }, cfg.jwtSecret, { algorithm: "HS256", expiresIn: "8h" })
+    jwt.sign({ sub: String(user._id), ver: user.sessionVersion || 0 }, cfg.jwtSecret, { algorithm: "HS256", expiresIn: "8h" })
 
 export async function requireAuth(req, res, next) {
     try {
@@ -19,6 +19,7 @@ export async function requireAuth(req, res, next) {
         if (typeof payload.sub !== "string") throw new HttpError(401, "Please log in again.")
         const user = await User.findById(payload.sub) // role is read from the database, never trusted from the token
         if (!user) throw new HttpError(401, "Please log in again.")
+        if ((payload.ver || 0) !== (user.sessionVersion || 0)) throw new HttpError(401, "Please log in again.")
         req.user = user
         next()
     } catch (e) {

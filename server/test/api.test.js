@@ -28,14 +28,24 @@ db.users.push({
 
 const maria = { name: "Maria Santos", phone: "09171234567", email: "maria@example.com", password: "Str0ng-pass-1" }
 const juan = { name: "Juan Cruz", phone: "09181234567", email: "juan@example.com", password: "Another-pass-2" }
+const resetUser = {
+    _id: "b".repeat(24),
+    name: "Reset User",
+    phone: "+639171234567",
+    email: "reset@example.com",
+    passwordHash: bcrypt.hashSync("Old-pass-123", 4),
+    sessionVersion: 0,
+    role: "customer"
+}
+db.users.push(resetUser)
 const customer = request.agent(app),
     other = request.agent(app),
     owner = request.agent(app)
 
 // Stand-in for the email provider: remembers each code so the tests can read it.
 const sent = []
-app.locals.sendOtp = async (cfg, to, code) => {
-    sent.push({ to, code })
+app.locals.sendOtp = async (cfg, to, code, purpose) => {
+    sent.push({ to, code, purpose })
 }
 const signUp = async (agent, u) => {
     const a = await agent.post("/api/auth/register").send(u)
@@ -61,7 +71,40 @@ test("register emails a code first; the account exists only after the code is ve
     const stored = db.users.find((u) => u.email === maria.email)
     assert.notEqual(stored.passwordHash, maria.password)
     assert.match(stored.passwordHash, /^\$2[aby]\$12\$/)
+    assert.equal(stored.phone, "+639171234567")
     assert.equal((await customer.get("/api/auth/me")).body.user.name, "Maria Santos")
+})
+
+test("password reset emails a one-time code, changes the password, and invalidates old sessions", async () => {
+    const existingSession = request.agent(app)
+    const loggedIn = await existingSession.post("/api/auth/login").send({ email: resetUser.email, password: "Old-pass-123" })
+    assert.equal(loggedIn.status, 200)
+
+    const start = await request(app).post("/api/auth/forgot-password").send({ email: resetUser.email })
+    assert.equal(start.status, 202)
+    assert.equal(JSON.stringify(start.body).includes(sent.at(-1).code), false)
+    assert.equal(sent.at(-1).to, resetUser.email)
+    assert.equal(sent.at(-1).purpose, "password-reset")
+    const code = sent.at(-1).code
+    assert.match(code, /^[0-9]{6}$/)
+
+    const wrong = await request(app)
+        .post("/api/auth/forgot-password/reset")
+        .send({ email: resetUser.email, code: "000000" === code ? "000001" : "000000", password: "New-pass-123" })
+    assert.equal(wrong.status, 400)
+
+    const changed = await request(app)
+        .post("/api/auth/forgot-password/reset")
+        .send({ email: resetUser.email, code, password: "New-pass-123" })
+    assert.equal(changed.status, 200)
+    assert.equal((await existingSession.get("/api/auth/me")).status, 401)
+
+    const reused = await request(app)
+        .post("/api/auth/forgot-password/reset")
+        .send({ email: resetUser.email, code, password: "Third-pass-123" })
+    assert.equal(reused.status, 400)
+    assert.equal((await request(app).post("/api/auth/login").send({ email: resetUser.email, password: "Old-pass-123" })).status, 401)
+    assert.equal((await request(app).post("/api/auth/login").send({ email: resetUser.email, password: "New-pass-123" })).status, 200)
 })
 
 test("duplicate email is refused with a field error", async () => {
