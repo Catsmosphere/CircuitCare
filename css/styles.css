@@ -1067,6 +1067,10 @@ footer.site .wrap{
         grid-template-columns: 1fr;
     }
 
+    .bleed{
+        font-size: clamp(2rem, 12vw, 5rem);
+    }
+
     .hero-tag .tag{
         transform: none;
     }
