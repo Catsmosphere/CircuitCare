@@ -1041,10 +1041,19 @@ footer.site .wrap{
     .tag-stub{
         border-left: 0;
         border-top: 2px dashed #3c4146;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         justify-items: start;
         text-align: left;
         min-width: 0;
+    }
+
+    .tag-stub > div{
+        min-width: 0;
+    }
+
+    .num{
+        font-size: clamp(1.7rem, 6.6vw, 2.2rem);
+        white-space: nowrap;
     }
 
     .tag-stub::before,
