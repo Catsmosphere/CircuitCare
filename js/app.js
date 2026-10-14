@@ -139,6 +139,14 @@
                 return norm(j.ticket)
             }, missing)
         },
+        submitFeedback: function(no, f){
+            return call("POST", "/api/tickets/mine/" + normNo(no) + "/feedback", {
+                rating: Number(f.rating),
+                comment: f.comment
+            }).then(function(j){
+                return norm(j.ticket)
+            })
+        },
         createTicket: function(f){
             return call("POST", "/api/tickets", { device: f.device, model: f.model, issue: f.issue }).then(
                 function(j){

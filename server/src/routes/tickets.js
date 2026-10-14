@@ -22,6 +22,12 @@ const updateSchema = z
         estimatedCost: z.number().min(0).max(10_000_000).optional()
     })
     .strict()
+const feedbackSchema = z
+    .object({
+        rating: z.number().int().min(1).max(5),
+        comment: z.string().trim().max(1000).optional().default("")
+    })
+    .strict()
 const listQuery = z.object({ status: z.enum(STATUSES).optional(), q: z.string().trim().max(60).optional() }).strict()
 
 // Shape database tickets into the smaller response used by both customer and owner pages.
@@ -32,6 +38,9 @@ const out = (t, customer) => ({
     issue: t.issue,
     status: t.status,
     estimatedCost: t.estimatedCost ?? null,
+    feedback: t.feedback
+        ? { rating: t.feedback.rating, comment: t.feedback.comment, submittedAt: t.feedback.submittedAt }
+        : null,
     createdAt: t.createdAt,
     updates: t.updates.map((u) => ({ status: u.status, note: u.note, at: u.at })),
     ...(customer ? { customer: { name: customer.name, phone: customer.phone, email: customer.email } } : {})
@@ -86,6 +95,33 @@ ticketRouter.get(
         const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no), customer: req.user._id }) // Include the account in the query so customers cannot fetch someone else's ticket.
         if (!t) throw new HttpError(404, "No ticket found with that number on your account.") // Use the same response for missing and other people's tickets.
         res.json({ ticket: out(t) })
+    })
+)
+
+ticketRouter.post(
+    "/mine/:no/feedback",
+    requireAuth,
+    requireRole("customer"),
+    asyncHandler(async (req, res) => {
+        const no = parse(NO, req.params.no),
+            d = parse(feedbackSchema, req.body)
+        const t = await Ticket.findOneAndUpdate(
+            {
+                ticketNo: no,
+                customer: req.user._id,
+                status: "Closed",
+                "feedback.submittedAt": mongoose.trusted({ $exists: false })
+            },
+            { $set: { feedback: { ...d, submittedAt: new Date() } } },
+            { new: true, runValidators: true }
+        )
+        if (!t) {
+            const owned = await Ticket.findOne({ ticketNo: no, customer: req.user._id })
+            if (!owned) throw new HttpError(404, "No ticket found with that number on your account.")
+            if (owned.status !== "Closed") throw new HttpError(409, "You can leave feedback after the repair is closed.")
+            throw new HttpError(409, "Feedback has already been submitted and cannot be changed.")
+        }
+        res.status(201).json({ ticket: out(t) })
     })
 )
 

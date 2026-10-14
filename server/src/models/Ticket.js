@@ -12,6 +12,15 @@ const updateSchema = new mongoose.Schema(
     { _id: false }
 )
 
+const feedbackSchema = new mongoose.Schema(
+    {
+        rating: { type: Number, required: true, min: 1, max: 5 },
+        comment: { type: String, trim: true, maxlength: 1000, default: "" },
+        submittedAt: { type: Date, required: true }
+    },
+    { _id: false }
+)
+
 const schema = new mongoose.Schema(
     {
         ticketNo: { type: String, required: true, unique: true, match: TICKET_NO },
@@ -21,7 +30,8 @@ const schema = new mongoose.Schema(
         issue: { type: String, required: true, trim: true, minlength: 10, maxlength: 1000 },
         status: { type: String, enum: STATUSES, default: "Received", index: true },
         estimatedCost: { type: Number, min: 0 },
-        updates: { type: [updateSchema], default: [] }
+        updates: { type: [updateSchema], default: [] },
+        feedback: { type: feedbackSchema, default: undefined }
     },
     { timestamps: true }
 )

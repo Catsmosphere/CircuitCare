@@ -20,6 +20,15 @@ CC.ready.then(function(){
                     "</span></label>"
                 )
             }).join("")
+            var feedback = t.feedback
+                ? '<p class="feedback-rating">' +
+                  t.feedback.rating +
+                  ' / 5 stars</p><p>' +
+                  (t.feedback.comment ? e(t.feedback.comment) : "No written comment.") +
+                  '</p><p class="mono muted">SUBMITTED ' +
+                  CC.dt(t.feedback.submittedAt) +
+                  "</p>"
+                : '<p class="muted">No feedback has been submitted.</p>'
             out.innerHTML =
                 '<div class="dash-top"><h1>Ticket <span class="mono">' +
                 t.no +
@@ -48,6 +57,9 @@ CC.ready.then(function(){
                 (t.cost != null ? t.cost : "") +
                 '"><p class="err" id="cost-err"></p></div>' +
                 '<button class="btn btn-primary" type="submit">Save update</button></form></div>' +
+                '<section class="card" aria-labelledby="feedback-title"><h2 id="feedback-title" class="eyebrow card-title">Customer feedback</h2>' +
+                feedback +
+                "</section>" +
                 '<section class="card" aria-labelledby="h"><h2 id="h" class="eyebrow card-title">History</h2>' +
                 CC.timeline(t) +
                 "</section></div>"

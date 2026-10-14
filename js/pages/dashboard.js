@@ -27,7 +27,60 @@ CC.ready.then(function(){
                 CC.badge(t.status) +
                 '<span class="mono muted">' +
                 CC.date(t.updates[t.updates.length - 1].at) +
-                "</span></li>"
+                "</span>" +
+                feedback(t) +
+                "</li>"
+            )
+        }
+        var feedback = function(t){
+            if (t.feedback)
+                return (
+                    '<details class="feedback"><summary>Feedback submitted — ' +
+                    t.feedback.rating +
+                    "/5</summary><p>" +
+                    (t.feedback.comment ? e(t.feedback.comment) : "No written comment.") +
+                    '</p><p class="mono muted">SUBMITTED ' +
+                    CC.dt(t.feedback.submittedAt) +
+                    "</p></details>"
+                )
+            return (
+                '<details class="feedback"><summary>Leave feedback</summary><form class="feedback-form" data-feedback-ticket="' +
+                e(t.no) +
+                '" novalidate><div class="form-error" role="alert" hidden></div><fieldset class="field" aria-describedby="rating-' +
+                e(t.no) +
+                '-err"><legend>Rating</legend><div class="rating-stars">' +
+                [5, 4, 3, 2, 1]
+                    .map(function(n){
+                        return (
+                            '<input type="radio" id="rating-' +
+                            e(t.no) +
+                            "-" +
+                            n +
+                            '" name="rating-' +
+                            e(t.no) +
+                            '" value="' +
+                            n +
+                            '" aria-describedby="rating-' +
+                            e(t.no) +
+                            '-err"><label for="rating-' +
+                            e(t.no) +
+                            "-" +
+                            n +
+                            '"><span class="sr">' +
+                            n +
+                            " star" +
+                            (n === 1 ? "" : "s") +
+                            "</span>★</label>"
+                        )
+                    })
+                    .join("") +
+                '</div><p class="err" id="rating-' +
+                e(t.no) +
+                '-err"></p></fieldset><div class="field"><label for="feedback-' +
+                e(t.no) +
+                '">Comment (optional)</label><textarea id="feedback-' +
+                e(t.no) +
+                '" name="comment" rows="3" maxlength="1000"></textarea></div><button class="btn btn-primary" type="submit">Send feedback</button></form></details>'
             )
         }
         // Split the customer's tickets into active work and completed repairs.
@@ -56,6 +109,20 @@ CC.ready.then(function(){
                         "</ul></section>"
             }
             document.getElementById("out").innerHTML = h
+            ;[].forEach.call(document.querySelectorAll(".feedback-form"), function(f){
+                var rating = "rating-" + f.dataset.feedbackTicket,
+                    rules = {}
+                rules[rating] = [CC.V.req("Choose a rating.")]
+                rules.comment = []
+                CC.form(f, rules, function(d){
+                    return CC.api.submitFeedback(f.dataset.feedbackTicket, { rating: d[rating], comment: d.comment }).then(
+                        function(t){
+                            f.closest("details").outerHTML = feedback(t)
+                            CC.toast("Thanks for your feedback.")
+                        }
+                    )
+                })
+            })
         })
     }
 })
