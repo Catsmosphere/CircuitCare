@@ -147,8 +147,8 @@
                 return norm(j.ticket)
             })
         },
-        createTicket: function(f){
-            return call("POST", "/api/tickets", { device: f.device, model: f.model, issue: f.issue }).then(
+        createTicket: function(f, photo){
+            return call("POST", "/api/tickets", { device: f.device, model: f.model, issue: f.issue, photo: photo || "" }).then(
                 function(j){
                     return norm(j.ticket)
                 }

@@ -18,6 +18,7 @@ const createSchema = z
             .min(10, "Add a little more detail (at least 10 characters).")
             .max(1000)
             .refine((s) => /\p{L}/u.test(s), "Describe the problem using words, not numbers alone."),
+        photo: z.string().max(1_228_800, "Photo is too large.").optional().default(""),
     })
     .strict()
 const updateSchema = z
@@ -36,7 +37,7 @@ const feedbackSchema = z
 const listQuery = z.object({ status: z.enum(STATUSES).optional(), q: z.string().trim().max(60).optional() }).strict()
 
 // Shape database tickets into the smaller response used by both customer and owner pages.
-const out = (t, customer) => ({
+const out = (t, customer, includePhoto = false) => ({
     no: t.ticketNo,
     device: t.deviceType,
     model: t.deviceModel,
@@ -48,6 +49,7 @@ const out = (t, customer) => ({
         : null,
     createdAt: t.createdAt,
     updates: t.updates.map((u) => ({ status: u.status, note: u.note, at: u.at })),
+    ...(includePhoto && t.photoData ? { photo: { contentType: "image/jpeg", data: t.photoData.toString("base64") } } : {}),
     ...(customer ? { customer: { name: customer.name, phone: customer.phone, email: customer.email } } : {})
 })
 
@@ -60,6 +62,9 @@ ticketRouter.post(
     requireRole("customer"),
     asyncHandler(async (req, res) => {
         const d = parse(createSchema, req.body)
+        const photo = d.photo ? Buffer.from(d.photo, "base64") : null
+        if (photo && (photo.length > 900 * 1024 || photo.toString("base64") !== d.photo || photo[0] !== 0xff || photo[1] !== 0xd8 || photo[2] !== 0xff))
+            throw new HttpError(400, "Upload a valid JPG photo under 900 KB.", { photo: "Choose a JPG, PNG, or WebP photo." })
         const makeNo = req.app.locals.newTicketNo || newTicketNo // Let tests provide predictable numbers without changing production generation.
         let t
         for (let attempt = 0; attempt < 5 && !t; attempt++) {
@@ -70,6 +75,7 @@ ticketRouter.post(
                     deviceType: d.device,
                     deviceModel: d.model,
                     issue: d.issue,
+                    ...(photo ? { photoData: photo } : {}),
                     updates: [{ status: "Received", note: "Ticket created from the online request.", by: req.user._id }]
                 })
             } catch (e) {
@@ -97,9 +103,9 @@ ticketRouter.get(
     requireAuth,
     requireRole("customer"),
     asyncHandler(async (req, res) => {
-        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no), customer: req.user._id }) // Include the account in the query so customers cannot fetch someone else's ticket.
+        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no), customer: req.user._id }).select("+photoData") // Include the account in the query so customers cannot fetch someone else's ticket.
         if (!t) throw new HttpError(404, "No ticket found with that number on your account.") // Use the same response for missing and other people's tickets.
-        res.json({ ticket: out(t) })
+        res.json({ ticket: out(t, null, true) })
     })
 )
 
@@ -157,9 +163,9 @@ ticketRouter.get(
     requireAuth,
     requireRole("owner"),
     asyncHandler(async (req, res) => {
-        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no) }).populate("customer", "name phone email")
+        const t = await Ticket.findOne({ ticketNo: parse(NO, req.params.no) }).select("+photoData").populate("customer", "name phone email")
         if (!t) throw new HttpError(404, "Ticket not found.")
-        res.json({ ticket: out(t, t.customer) })
+        res.json({ ticket: out(t, t.customer, true) })
     })
 )
 

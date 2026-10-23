@@ -28,6 +28,7 @@ const schema = new mongoose.Schema(
         deviceType: { type: String, enum: DEVICES, required: true },
         deviceModel: { type: String, trim: true, maxlength: 80, default: "" },
         issue: { type: String, required: true, trim: true, minlength: 10, maxlength: 1000 },
+        photoData: { type: Buffer, select: false },
         status: { type: String, enum: STATUSES, default: "Received", index: true },
         estimatedCost: { type: Number, min: 0 },
         updates: { type: [updateSchema], default: [] },

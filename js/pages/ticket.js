@@ -47,7 +47,15 @@ CC.ready.then(function(){
                 e(t.device + (t.model ? " — " + t.model : "")) +
                 "</dd><dt>Problem</dt><dd>" +
                 e(t.issue) +
-                "</dd><dt>Estimated cost</dt><dd>" +
+                "</dd>" +
+                (t.photo
+                    ? '<dt>Customer photo</dt><dd><img class="ticket-photo" src="data:' +
+                      e(t.photo.contentType) +
+                      ";base64," +
+                      e(t.photo.data) +
+                      '" alt="Photo of the device attached by the customer" loading="lazy"></dd>'
+                    : "") +
+                "<dt>Estimated cost</dt><dd>" +
                 (t.cost != null ? CC.money(t.cost) : "Not set") +
                 "</dd></dl></section>" +
                 '<form id="f" class="card" novalidate aria-labelledby="u"><h2 id="u" class="eyebrow card-title">Update status</h2><div class="form-error" role="alert" hidden></div>' +

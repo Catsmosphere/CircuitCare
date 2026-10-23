@@ -54,6 +54,8 @@ export function createApp(cfg) {
         res.set("Cache-Control", "no-store")
         next()
     })
+    // Allow one resized customer photo on a repair request while keeping other JSON bodies small.
+    app.post("/api/tickets", express.json({ limit: "1.3mb" }))
     app.use(express.json({ limit: "10kb" }))
     // Require JSON for writes so cross-site forms cannot submit these requests without a CORS preflight.
     app.use((req, res, next) => {

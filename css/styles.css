@@ -1365,6 +1365,16 @@ legend{
     background: var(--card);
 }
 
+.ticket-photo{
+    display: block;
+    max-width: min(100%, 520px);
+    max-height: 420px;
+    object-fit: contain;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+}
+
 .account-search{
     margin-bottom: 18px;
 }
