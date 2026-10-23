@@ -135,6 +135,11 @@ test("customer creates tickets with random codes; bad input is rejected per fiel
     const bad = await customer.post("/api/tickets").send({ device: "Toaster", issue: "short" })
     assert.equal(bad.status, 400)
     assert.ok(bad.body.fields.device && bad.body.fields.issue)
+    const numbersOnly = await customer
+        .post("/api/tickets")
+        .send({ device: "Phone", issue: "12313123131231231313" })
+    assert.equal(numbersOnly.status, 400)
+    assert.match(numbersOnly.body.fields.issue, /using words/)
     const t1 = await customer
         .post("/api/tickets")
         .send({ device: "Phone", model: "Samsung A54", issue: "Cracked screen, does not respond to touch" })
@@ -192,6 +197,9 @@ test("owner lists, filters, searches and updates tickets; the customer sees the 
     assert.equal(ok.status, 200)
     assert.equal(ok.body.ticket.status, "In progress")
     assert.equal(ok.body.ticket.updates.length, 2)
+    const backwards = await owner.patch(`/api/tickets/${no1}`).send({ status: "Received" })
+    assert.equal(backwards.status, 409)
+    assert.equal((await owner.get(`/api/tickets/${no1}`)).body.ticket.status, "In progress")
 
     const seen = await customer.get(`/api/tickets/mine/${no1}`)
     assert.equal(seen.body.ticket.status, "In progress")
@@ -309,4 +317,29 @@ test("sign-up code: if the email cannot be sent, nothing is kept and the user ca
     assert.equal(r.status, 502)
     assert.equal(pendingRow(p.email), undefined)
     assert.equal((await request(app).post("/api/auth/register").send(p)).status, 202)
+})
+
+test("owner manages customer accounts and disabling revokes active sessions", async () => {
+    const listed = await owner.get("/api/accounts")
+    assert.equal(listed.status, 200)
+    const mariaAccount = listed.body.accounts.find((a) => a.email === maria.email)
+    assert.equal(mariaAccount.enabled, true)
+    assert.equal(mariaAccount.phone, "+639171234567")
+    assert.equal(mariaAccount.passwordHash, undefined)
+    assert.equal((await customer.get("/api/accounts")).status, 403)
+
+    const disabled = await owner.patch(`/api/accounts/${mariaAccount.id}`).send({ enabled: false })
+    assert.equal(disabled.status, 200)
+    assert.equal(disabled.body.account.enabled, false)
+    assert.equal((await customer.get("/api/auth/me")).status, 401)
+    assert.equal(
+        (await customer.post("/api/auth/login").send({ email: maria.email, password: maria.password })).status,
+        401
+    )
+
+    const enabled = await owner.patch(`/api/accounts/${mariaAccount.id}`).send({ enabled: true })
+    assert.equal(enabled.body.account.enabled, true)
+    assert.equal((await customer.post("/api/auth/login").send({ email: maria.email, password: maria.password })).status, 200)
+    assert.equal((await customer.get(`/api/tickets/mine/${no1}`)).status, 200) // Re-enabling preserves the customer's ticket history.
+    assert.equal((await owner.patch(`/api/accounts/${"a".repeat(24)}`).send({ enabled: false })).status, 404)
 })

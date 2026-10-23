@@ -21,6 +21,7 @@ export async function requireAuth(req, res, next) {
         if (typeof payload.sub !== "string") throw new HttpError(401, "Please log in again.")
         const user = await User.findById(payload.sub) // Read the current role from MongoDB instead of trusting a token claim.
         if (!user) throw new HttpError(401, "Please log in again.")
+        if (user.active === false) throw new HttpError(401, "This account has been disabled.")
         if ((payload.ver || 0) !== (user.sessionVersion || 0)) throw new HttpError(401, "Please log in again.")
         req.user = user
         next()

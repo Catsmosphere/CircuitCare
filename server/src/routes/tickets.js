@@ -12,7 +12,12 @@ const createSchema = z
     .object({
         device: z.enum(DEVICES, { message: "Choose the type of device." }),
         model: z.string().trim().max(80).optional().default(""),
-        issue: z.string().trim().min(10, "Add a little more detail (at least 10 characters).").max(1000)
+        issue: z
+            .string()
+            .trim()
+            .min(10, "Add a little more detail (at least 10 characters).")
+            .max(1000)
+            .refine((s) => /\p{L}/u.test(s), "Describe the problem using words, not numbers alone."),
     })
     .strict()
 const updateSchema = z
@@ -167,6 +172,8 @@ ticketRouter.patch(
             d = parse(updateSchema, req.body)
         const t = await Ticket.findOne({ ticketNo: no })
         if (!t) throw new HttpError(404, "Ticket not found.")
+        if (STATUSES.indexOf(d.status) < STATUSES.indexOf(t.status))
+            throw new HttpError(409, "A ticket cannot move back to an earlier status.", { status: "Choose the current status or a later step." })
         t.status = d.status
         if (d.estimatedCost !== undefined) t.estimatedCost = d.estimatedCost
         t.updates.push({ status: d.status, note: d.note || `Status changed to ${d.status}.`, by: req.user._id })

@@ -9,12 +9,14 @@ CC.ready.then(function(){
         function view(t) {
             document.title = "Ticket " + t.no + " — CircuitCare Repair"
             document.getElementById("crumb-no").textContent = t.no
-            var chips = CC.STATUSES.map(function(s){
+            var currentStatus = CC.STATUSES.indexOf(t.status),
+                chips = CC.STATUSES.map(function(s, i){
                 return (
                     '<label class="chip"><input type="radio" name="status" value="' +
                     e(s) +
                     '"' +
                     (s === t.status ? " checked" : "") +
+                    (i < currentStatus ? " disabled" : "") +
                     "><span>" +
                     e(s) +
                     "</span></label>"

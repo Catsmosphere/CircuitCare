@@ -7,6 +7,7 @@ const schema = new mongoose.Schema(
         email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 120 },
         passwordHash: { type: String, required: true, select: false }, // Hide hashes from queries unless authentication needs one.
         role: { type: String, enum: ["customer", "owner"], default: "customer" },
+        active: { type: Boolean, default: true },
         sessionVersion: { type: Number, default: 0 }
     },
     { timestamps: true }

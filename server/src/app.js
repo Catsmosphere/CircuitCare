@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser"
 import rateLimit from "express-rate-limit"
 import mongoose from "mongoose"
 import { authRouter } from "./routes/auth.js"
+import { accountRouter } from "./routes/accounts.js"
 import { ticketRouter } from "./routes/tickets.js"
 import { HttpError } from "./util.js"
 
@@ -101,6 +102,7 @@ export function createApp(cfg) {
         })
     )
     app.use("/api/auth", authRouter)
+    app.use("/api/accounts", accountRouter)
     app.use("/api/tickets", ticketRouter)
 
     app.use((req, res) => res.status(404).json({ error: "Not found." }))

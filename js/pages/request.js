@@ -23,7 +23,8 @@ CC.ready.then(function(){
                 issue: [
                     CC.V.req("Describe what’s wrong."),
                     function(v){
-                        return v.length >= 10 ? "" : "Add a little more detail (at least 10 characters)."
+                        if (v.length < 10) return "Add a little more detail (at least 10 characters)."
+                        return /\p{L}/u.test(v) ? "" : "Describe the problem using words, not numbers alone."
                     }
                 ]
             },

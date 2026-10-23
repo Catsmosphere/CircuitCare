@@ -159,6 +159,16 @@
                 return j.tickets.map(norm)
             })
         },
+        ownerAccounts: function(){
+            return call("GET", "/api/accounts").then(function(j){
+                return j.accounts
+            })
+        },
+        setAccountEnabled: function(id, enabled){
+            return call("PATCH", "/api/accounts/" + encodeURIComponent(id), { enabled: enabled }).then(function(j){
+                return j.account
+            })
+        },
         ownerTicket: function(no){
             return call("GET", "/api/tickets/" + normNo(no)).then(function(j){
                 return norm(j.ticket)
@@ -429,7 +439,13 @@
                 L("login.html", "Log in", "login", "btn btn-ghost btn-sm") +
                 L("signup.html", "Sign up", "signup", "btn btn-primary btn-sm")
         else if (u.role === "owner")
-            nav = L("owner.html", "Dashboard", "home") + '<span class="who">' + esc(u.name) + "</span>" + out
+            nav =
+                L("owner.html", "Tickets", "home") +
+                L("accounts.html", "Accounts", "accounts") +
+                '<span class="who">' +
+                esc(u.name) +
+                "</span>" +
+                out
         else
             nav =
                 L("dashboard.html", "My repairs", "home") +

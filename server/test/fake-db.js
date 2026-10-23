@@ -97,7 +97,12 @@ export function installFakeDb() {
     User.findOne = (f) => new Query(() => db.users.find((u) => u.email === f.email) || null)
     User.findById = async (id) => db.users.find((u) => u._id === String(id)) || null
     User.updateOne = async (f, u) => {
-        const user = db.users.find((x) => x.email === f.email)
+        const user = db.users.find(
+            (x) =>
+                (f.email === undefined || x.email === f.email) &&
+                (f._id === undefined || x._id === String(f._id)) &&
+                (f.role === undefined || x.role === f.role)
+        )
         if (!user) return { matchedCount: 0 }
         Object.assign(user, u.$set || {})
         for (const [k, v] of Object.entries(u.$inc || {})) user[k] = (user[k] || 0) + v
@@ -165,7 +170,14 @@ export function installFakeDb() {
         if (i >= 0) db.passwordResets.splice(i, 1)
         return { deletedCount: i >= 0 ? 1 : 0 }
     }
-    User.find = (f) => new Query(() => db.users.filter((u) => (f.name instanceof RegExp ? f.name.test(u.name) : true)))
+    User.find = (f) =>
+        new Query(() =>
+            db.users.filter(
+                (u) =>
+                    (f.name instanceof RegExp ? f.name.test(u.name) : true) &&
+                    (f.role === undefined || u.role === f.role)
+            )
+        )
     Ticket.create = async (d) => {
         if (db.tickets.some((x) => x.ticketNo === d.ticketNo))
             throw Object.assign(new Error("E11000 duplicate key"), { code: 11000, keyPattern: { ticketNo: 1 } })
