@@ -4,11 +4,21 @@ CC.ready.then(function(){
     if (u) {
         var out = document.getElementById("out"),
             e = CC.esc,
-            accounts = []
+            accounts = [],
+            query = "",
+            page = 1,
+            pageSize = 5
         function render() {
-            out.innerHTML = accounts.length
+            var filtered = accounts.filter(function(a){
+                return [a.name, a.email, a.phone].join(" ").toLowerCase().includes(query)
+            })
+            var pages = Math.max(1, Math.ceil(filtered.length / pageSize))
+            page = Math.min(page, pages)
+            out.innerHTML = '<div class="account-search"><label class="field"><span>Search accounts</span><input id="account-search" type="search" placeholder="Name, email, or phone" value="' +
+                e(query) +
+                '"></label></div>' + (filtered.length
                 ? '<div class="account-table-wrap"><table class="account-table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th><th>Status</th><th>Action</th></tr></thead><tbody>' +
-                  accounts
+                  filtered.slice((page - 1) * pageSize, page * pageSize)
                       .map(function(a){
                           return (
                               '<tr><td>' +
@@ -33,10 +43,45 @@ CC.ready.then(function(){
                           )
                       })
                       .join("") +
-                  "</tbody></table></div>"
-                : '<div class="card empty"><h2>No customer accounts yet</h2><p class="muted">Customer accounts will appear here after signup.</p></div>'
+                  "</tbody></table></div>" +
+                  (pages > 1
+                      ? '<nav class="pagination" aria-label="Customer account pages"><button class="chip-btn" type="button" data-page="' +
+                        (page - 1) +
+                        '"' +
+                        (page === 1 ? " disabled" : "") +
+                        '>Previous</button><span class="mono muted">Page ' +
+                        page +
+                        " of " +
+                        pages +
+                        '</span><button class="chip-btn" type="button" data-page="' +
+                        (page + 1) +
+                        '"' +
+                        (page === pages ? " disabled" : "") +
+                        ">Next</button></nav>"
+                      : "")
+                : '<div class="card empty"><h2>' +
+                  (accounts.length ? "No accounts match your search" : "No customer accounts yet") +
+                  "</h2><p class=\"muted\">" +
+                  (accounts.length ? "Try another name, email, or phone number." : "Customer accounts will appear here after signup.") +
+                  "</p></div>")
         }
+        out.addEventListener("input", function(ev){
+            if (ev.target.id === "account-search") {
+                query = ev.target.value.trim().toLowerCase()
+                page = 1
+                render()
+                var input = document.getElementById("account-search")
+                input.focus()
+                input.setSelectionRange(query.length, query.length)
+            }
+        })
         out.addEventListener("click", function(ev){
+            var pageButton = ev.target.closest("button[data-page]")
+            if (pageButton) {
+                page = Number(pageButton.dataset.page)
+                render()
+                return
+            }
             var button = ev.target.closest("button[data-account]")
             if (!button) return
             button.disabled = true

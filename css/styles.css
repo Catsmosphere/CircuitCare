@@ -1365,6 +1365,15 @@ legend{
     background: var(--card);
 }
 
+.account-search{
+    margin-bottom: 18px;
+}
+
+.account-search .field{
+    max-width: 420px;
+    margin: 0;
+}
+
 .account-table{
     width: 100%;
     border-collapse: collapse;
@@ -1401,6 +1410,7 @@ legend{
     align-items: center;
     justify-content: center;
     gap: 16px;
+    margin-top: 16px;
 }
 
 .pagination[hidden]{

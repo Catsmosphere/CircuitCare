@@ -249,8 +249,9 @@ authRouter.post(
         const d = parse(loginSchema, req.body)
         const user = await User.findOne({ email: d.email }).select("+passwordHash")
         const ok = await bcrypt.compare(d.password, user ? user.passwordHash : DUMMY_HASH)
-        if (!user || !ok || user.active === false)
-            throw new HttpError(401, "Email or password is incorrect.") // Do not reveal whether the email exists or is disabled.
+        if (!user || !ok) throw new HttpError(401, "Email or password is incorrect.")
+        if (user.active === false)
+            throw new HttpError(403, "This account has been disabled. Please contact the shop owner.")
         setCookie(req, res, user)
         res.json({ user: pub(user) })
     })
