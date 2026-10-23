@@ -83,32 +83,68 @@ CC.ready.then(function(){
                 '" name="comment" rows="3" maxlength="1000"></textarea></div><button class="btn btn-primary" type="submit">Send feedback</button></form></details>'
             )
         }
-        // Split the customer's tickets into active work and completed repairs.
-        CC.api.myTickets().then(function(ts){
-            var act = ts.filter(function(t){
+        var out = document.getElementById("out"),
+            activePage = 1,
+            pastPage = 1,
+            activeSize = 2,
+            pastSize = 3,
+            allTickets = []
+        function pager(list, page, pages) {
+            return pages > 1
+                ? '<nav class="pagination" aria-label="' +
+                      (list === "active" ? "Current repairs" : "Past repairs") +
+                      ' pages"><button class="chip-btn" type="button" data-list="' +
+                      list +
+                      '" data-page="' +
+                      (page - 1) +
+                      '"' +
+                      (page === 1 ? " disabled" : "") +
+                      '>Previous</button><span class="mono muted">Page ' +
+                      page +
+                      " of " +
+                      pages +
+                      '</span><button class="chip-btn" type="button" data-list="' +
+                      list +
+                      '" data-page="' +
+                      (page + 1) +
+                      '"' +
+                      (page === pages ? " disabled" : "") +
+                      ">Next</button></nav>"
+                : ""
+        }
+        function render() {
+            var act = allTickets.filter(function(t){
                     return t.status !== "Closed"
                 }),
-                past = ts.filter(function(t){
+                past = allTickets.filter(function(t){
                     return t.status === "Closed"
                 }),
+                activePages = Math.max(1, Math.ceil(act.length / activeSize)),
+                pastPages = Math.max(1, Math.ceil(past.length / pastSize)),
                 h = ""
-            if (!ts.length)
+            activePage = Math.min(activePage, activePages)
+            pastPage = Math.min(pastPage, pastPages)
+            if (!allTickets.length)
                 h =
                     '<div class="card empty"><h2>No repairs yet</h2><p class="muted">When you send a request, it shows up here with a ticket number.</p><a class="btn btn-primary" href="request.html">Request a repair</a></div>'
             else {
                 h =
                     '<section aria-labelledby="cur"><h2 id="cur">Current repairs</h2><div class="stack">' +
                     (act.length
-                        ? act.map(card).join("")
+                        ? act.slice((activePage - 1) * activeSize, activePage * activeSize).map(card).join("")
                         : '<div class="card muted">No repairs in progress right now.</div>') +
-                    "</div></section>"
+                    "</div>" +
+                    pager("active", activePage, activePages) +
+                    "</section>"
                 if (past.length)
                     h +=
                         '<section aria-labelledby="past"><h2 id="past">Past repairs</h2><ul class="rows">' +
-                        past.map(row).join("") +
-                        "</ul></section>"
+                        past.slice((pastPage - 1) * pastSize, pastPage * pastSize).map(row).join("") +
+                        "</ul>" +
+                        pager("past", pastPage, pastPages) +
+                        "</section>"
             }
-            document.getElementById("out").innerHTML = h
+            out.innerHTML = h
             ;[].forEach.call(document.querySelectorAll(".feedback-form"), function(f){
                 var rating = "rating-" + f.dataset.feedbackTicket,
                     rules = {}
@@ -117,12 +153,27 @@ CC.ready.then(function(){
                 CC.form(f, rules, function(d){
                     return CC.api.submitFeedback(f.dataset.feedbackTicket, { rating: d[rating], comment: d.comment }).then(
                         function(t){
-                            f.closest("details").outerHTML = feedback(t)
+                            allTickets = allTickets.map(function(ticket){
+                                return ticket.no === t.no ? t : ticket
+                            })
+                            render()
                             CC.toast("Thanks for your feedback.")
                         }
                     )
                 })
             })
+        }
+        out.addEventListener("click", function(ev){
+            var button = ev.target.closest("button[data-list][data-page]")
+            if (!button || button.disabled) return
+            if (button.dataset.list === "active") activePage = Number(button.dataset.page)
+            else pastPage = Number(button.dataset.page)
+            render()
+        })
+        // Split the customer's tickets into active work and completed repairs.
+        CC.api.myTickets().then(function(ts){
+            allTickets = ts
+            render()
         })
     }
 })
